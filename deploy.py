@@ -46,16 +46,15 @@ def run_command(command: list, cwd: Optional[str] = None, check: bool = True) ->
         logging.error(f"STDERR: {e.stderr}")
         raise
 
-def check_dependency(command: str, install_command: Optional[list] = None) -> None:
-    """Check if a command is available, and install it if not."""
+def check_dependency(command: str) -> bool:
+    """Check if a command is available in the system."""
     try:
-        run_command([command, '-v'])  # Check if the command is available
+        run_command([command, '-v'])
         logging.info(f"{command} is already installed.")
+        return True
     except subprocess.CalledProcessError:
-        logging.warning(f"{command} is not installed. Installing...")
-        if install_command:
-            run_command(install_command)
-            logging.info(f"{command} installed successfully.")
+        logging.error(f"{command} is not installed.")
+        return False
 
 def install_nodejs(version: str) -> None:
     """Install specific Node.js version using nodesource."""
@@ -67,6 +66,18 @@ def install_nodejs(version: str) -> None:
         logging.info("Node.js installed successfully")
     except Exception as e:
         logging.error(f"Node.js installation failed: {e}")
+        raise
+
+def install_pm2() -> None:
+    """Install PM2 process manager globally."""
+    try:
+        if not check_dependency("npm"):
+            install_nodejs(config.NODE_VERSION)  # Install Node.js if npm is not available
+        if not check_dependency("pm2"):
+            run_command(["npm", "install", "-g", "pm2"])
+            logging.info("PM2 installed successfully")
+    except Exception as e:
+        logging.error(f"PM2 installation failed: {e}")
         raise
 
 def clone_repository(repo_url: str, project_dir: str) -> None:
@@ -83,20 +94,14 @@ def setup_project(project_dir: str) -> None:
     """Setup project dependencies and build."""
     try:
         logging.info(f"Setting up project in {project_dir}...")
+        if not os.path.exists(os.path.join(project_dir, 'package-lock.json')):
+            logging.info("package-lock.json not found. Running npm install to generate it.")
+            run_command(["npm", "install"], cwd=project_dir)  # Generate package-lock.json
         run_command(["npm", "ci"], cwd=project_dir)  # Use npm ci for more reliable dependency installation
         run_command([config.NEXT_BUILD_COMMAND], cwd=project_dir)
         logging.info("Project setup completed successfully")
     except Exception as e:
         logging.error(f"Project setup failed: {e}")
-        raise
-
-def install_pm2() -> None:
-    """Install PM2 process manager globally."""
-    try:
-        check_dependency("npm")  # Ensure npm is installed
-        check_dependency("pm2", ["npm", "install", "-g", "pm2"])  # Check and install PM2
-    except Exception as e:
-        logging.error(f"PM2 installation failed: {e}")
         raise
 
 def configure_pm2_startup(username: str) -> None:
@@ -137,11 +142,13 @@ def cleanup() -> None:
 
 def main():
     try:
-        install_nodejs(config.NODE_VERSION)
-        check_dependency("git", ["sudo", "apt-get", "install", "-y", "git"])  # Check and install git
+        if not check_dependency("git"):
+            logging.error("Git is required for this deployment. Please install Git and try again.")
+            sys.exit(1)
+
+        install_pm2()
         clone_repository(config.GITHUB_REPO_URL, config.PROJECT_DIR)
         setup_project(config.PROJECT_DIR)
-        install_pm2()
         start_application_with_pm2(config.PROJECT_DIR, config.PM2_APP_NAME)
         configure_pm2_startup(os.getlogin())
         cleanup()
