@@ -1,11 +1,11 @@
 # config.py
 
 # Konfigurasi Node.js
-NODE_VERSION = "23.6.0"
+NODE_VERSION = "23"
 
 # Konfigurasi GitHub
-GITHUB_REPO_URL = "https://github.com/username/repository.git"
-PROJECT_DIR = "/var/www/nextjs-app"
+GITHUB_REPO_URL = "https://github.com/username/repository.git" #your github repository
+PROJECT_DIR = "/var/www/nextjs-app" #your project directory
 
 # Konfigurasi Aplikasi
 NEXT_BUILD_COMMAND = "npm run build"

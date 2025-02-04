@@ -215,7 +215,7 @@ Follow these steps to deploy your Next.js application:
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/yourusername/nextjs-deployment-script.git
+   git clone git@github.com:indrakurnia123/nextjs-deployment-tools.git
    cd nextjs-deployment-script
    ```
 
