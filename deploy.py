@@ -46,6 +46,24 @@ def run_command(command: list, cwd: Optional[str] = None, check: bool = True) ->
         logging.error(f"STDERR: {e.stderr}")
         raise
 
+def check_dependency(command: str, install_command: list, package_name: str) -> None:
+    """
+    Check if a dependency is installed, and install it if not.
+    
+    Args:
+        command (str): Command to check if the dependency is installed
+        install_command (list): Command to install the dependency
+        package_name (str): Name of the dependency for logging purposes
+    """
+    try:
+        logging.info(f"Checking if {package_name} is installed...")
+        subprocess.run(command, check=True)
+        logging.info(f"{package_name} is already installed.")
+    except subprocess.CalledProcessError:
+        logging.info(f"{package_name} is not installed. Installing {package_name}...")
+        run_command(install_command)
+        logging.info(f"{package_name} installed successfully.")
+
 def install_nodejs(version: str) -> None:
     """Install specific Node.js version using nodesource."""
     try:
@@ -79,24 +97,14 @@ def setup_project(project_dir: str) -> None:
         logging.error(f"Project setup failed: {e}")
         raise
 
-def is_pm2_installed() -> bool:
-    """Check if PM2 is installed."""
+def start_application_with_pm2(project_dir: str, app_name: str) -> None:
+    """Start NextJS application using PM2."""
     try:
-        run_command(["pm2", "-v"])
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-def install_pm2() -> None:
-    """Install PM2 process manager globally."""
-    try:
-        if not is_pm2_installed():
-            run_command(["npm", "install", "-g", "pm2"])
-            logging.info("PM2 installed successfully")
-        else:
-            logging.info("PM2 is already installed.")
+        logging.info(f"Starting application in {project_dir} using PM2...")
+        run_command(["pm2", "start", config.NEXT_START_COMMAND, "--name", app_name], cwd=project_dir)
+        logging.info("Application started successfully with PM2")
     except Exception as e:
-        logging.error(f"PM2 installation failed: {e}")
+        logging.error(f"Application startup failed: {e}")
         raise
 
 def configure_pm2_startup(username: str) -> None:
@@ -115,16 +123,6 @@ def configure_pm2_startup(username: str) -> None:
         logging.error(f"PM2 startup configuration failed: {e}")
         raise
 
-def start_application_with_pm2(project_dir: str, app_name: str) -> None:
-    """Start NextJS application using PM2."""
-    try:
-        logging.info(f"Starting application in {project_dir} using PM2...")
-        run_command(["pm2", "start", config.NEXT_START_COMMAND, "--name", app_name], cwd=project_dir)
-        logging.info("Application started successfully with PM2")
-    except Exception as e:
-        logging.error(f"Application startup failed: {e}")
-        raise
-
 def cleanup() -> None:
     """Perform cleanup tasks after deployment."""
     try:
@@ -137,10 +135,14 @@ def cleanup() -> None:
 
 def main():
     try:
+        # Check and install dependencies
+        check_dependency(["npm", "-v"], ["sudo", "apt-get", "install", "-y", "npm"], "npm")
+        check_dependency(["git", "--version"], ["sudo", "apt-get", "install", "-y", "git"], "git")
+        check_dependency(["pm2", "-v"], ["npm", "install", "-g", "pm2"], "pm2")
+
         install_nodejs(config.NODE_VERSION)
         clone_repository(config.GITHUB_REPO_URL, config.PROJECT_DIR)
         setup_project(config.PROJECT_DIR)
-        install_pm2()
         start_application_with_pm2(config.PROJECT_DIR, config.PM2_APP_NAME)
         configure_pm2_startup(os.getlogin())
         cleanup()
